@@ -7,9 +7,16 @@
 
 import SwiftUI
 import SwiftData
+import Firebase
 
 @main
 struct CheckApp: App {
+    
+    init(){
+        FirebaseApp.configure()
+        print("Firebase configured!")
+    }
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,

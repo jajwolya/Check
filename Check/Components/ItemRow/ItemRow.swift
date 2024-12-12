@@ -13,15 +13,24 @@ struct ItemRow: View {
     let isComplete: Bool
 
     var body: some View {
-        HStack {
-            Text(item.name)
-                .strikethrough(isComplete)
-                .foregroundColor(isComplete ? .gray : .primary)
-            Spacer()
-            Button(action: {
-                toggleItemCompletion(item)
-            }) {
-                Image(systemName: isComplete ? "circle.fill" : "circle")
+        VStack(alignment: .leading, spacing: 8.0) {
+            HStack {
+                Text(item.name)
+                    .strikethrough(isComplete)
+                    .foregroundColor(isComplete ? .gray : .primary)
+                Spacer()
+                Text("(\(item.quantity))").strikethrough(isComplete)
+                    .foregroundColor(isComplete ? .gray : .primary)
+                Button(action: {
+                    toggleItemCompletion(item)
+                }) {
+                    Image(systemName: isComplete ? "circle.fill" : "circle")
+                }
+            }
+            if !item.note.isEmpty && !isComplete {
+                Text(item.note)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
     }
