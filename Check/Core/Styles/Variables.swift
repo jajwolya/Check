@@ -15,6 +15,6 @@ struct Padding {
 }
 
 struct Colors {
-    static let surfaceLight: Color = Color(red: 54.0/255.0, green: 54.0/255.0, blue: 54.0/255.0)
+    static let surfaceLight: Color = Color(
+        red: 54.0 / 255.0, green: 54.0 / 255.0, blue: 54.0 / 255.0)
 }
-
