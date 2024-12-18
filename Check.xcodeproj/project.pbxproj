@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D015C7652D0B7FDF00110D01 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = D015C7642D0B7FDF00110D01 /* FirebaseAuth */; };
+		D015C7762D0F880300110D01 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = D015C7752D0F880300110D01 /* FirebaseFirestore */; };
 		D02236532D0B045D004D7DA4 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = D02236522D0B045D004D7DA4 /* FirebaseAnalytics */; };
 /* End PBXBuildFile section */
 
@@ -57,6 +59,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				D02236532D0B045D004D7DA4 /* FirebaseAnalytics in Frameworks */,
+				D015C7652D0B7FDF00110D01 /* FirebaseAuth in Frameworks */,
+				D015C7762D0F880300110D01 /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,12 +81,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		D015C7632D0B7FDF00110D01 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		D0E9AB1C2D099247002EDF53 = {
 			isa = PBXGroup;
 			children = (
 				D0E9AB272D099247002EDF53 /* Check */,
 				D0E9AB3A2D099249002EDF53 /* CheckTests */,
 				D0E9AB442D099249002EDF53 /* CheckUITests */,
+				D015C7632D0B7FDF00110D01 /* Frameworks */,
 				D0E9AB262D099247002EDF53 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -118,6 +130,8 @@
 			name = Check;
 			packageProductDependencies = (
 				D02236522D0B045D004D7DA4 /* FirebaseAnalytics */,
+				D015C7642D0B7FDF00110D01 /* FirebaseAuth */,
+				D015C7752D0F880300110D01 /* FirebaseFirestore */,
 			);
 			productName = Check;
 			productReference = D0E9AB252D099247002EDF53 /* Check.app */;
@@ -405,6 +419,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Check/Preview Content\"";
+				DEVELOPMENT_TEAM = KFZ5EX2LDA;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -433,6 +448,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Check/Preview Content\"";
+				DEVELOPMENT_TEAM = KFZ5EX2LDA;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -574,6 +590,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		D015C7642D0B7FDF00110D01 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D02236512D0B045D004D7DA4 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		D015C7752D0F880300110D01 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D02236512D0B045D004D7DA4 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
 		D02236522D0B045D004D7DA4 /* FirebaseAnalytics */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D02236512D0B045D004D7DA4 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
