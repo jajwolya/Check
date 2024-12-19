@@ -33,7 +33,7 @@ import SwiftUI
     func addNewList() async throws {
         guard let user,
             let listId = try? await ListManager.shared.createNewList(
-                name: newListName)
+                name: newListName, userId: user.userId)
         else {
             if user == nil {
                 throw UserError.notLoggedIn(
@@ -47,19 +47,16 @@ import SwiftUI
         self.lists = try await UserManager.shared.getLists(userId: user.userId)
     }
 
-    func deleteList(at offsets: IndexSet) async throws {
+    func deleteList(_ listId: String) async throws {
         guard let user else {
             throw UserError.notLoggedIn(
-                "User must be logged in to create a list.")
+                "User must be logged in.")
         }
-        
-        for index in offsets {
-            let listIdToDelete = lists[index].listId
-            try await UserManager.shared.deleteList(
-                userId: user.userId, listId: listIdToDelete)
-            try await ListManager.shared.deleteList(listId: listIdToDelete)
-        }
-        
+
+        try await UserManager.shared.deleteList(
+            userId: user.userId, listId: listId)
+        try await ListManager.shared.deleteList(
+            listId: listId, userId: user.userId)
         self.lists = try await UserManager.shared.getLists(userId: user.userId)
     }
 }
@@ -70,31 +67,27 @@ struct ProfileView: View {
     @State private var isAddingList: Bool = false
 
     var body: some View {
-        List {
-            if !viewModel.lists.isEmpty {
-                ForEach(viewModel.lists, id: \.listId) { list in
-                    NavigationLink(destination: ListView(listId: list.listId)) {
-                        Text(list.name)
+        ZStack {
+            Color(.surfaceDark)
+                .ignoresSafeArea()
+            List {
+                if !viewModel.lists.isEmpty {
+                    listsView()
+                }
+
+                if viewModel.user != nil {
+                    if isAddingList {
+                        newListView
                     }
                 }
-                .onDelete { indexSet in
-                    Task {
-                        do {
-                            try await viewModel.deleteList(at: indexSet)
-                        } catch {
-                            print("Error deleting list: \(error)")
-                        }
-                    }
-                }
-            } else {
-                Text("Add a list to get started!")
             }
-            if viewModel.user != nil {
-                if isAddingList {
-                    NewListView
-                }
-            }
+            .scrollContentBackground(.hidden)
+            .background(Color(.surfaceDark))
+            .padding(.top, 48)
         }
+        .overlay(
+            NavigationBar(title: "Lists")
+        )
         .task {
             do {
                 try await viewModel.loadCurrentUser()
@@ -103,7 +96,6 @@ struct ProfileView: View {
                 print("Failed to load current user or lists: \(error)")
             }
         }
-        .navigationTitle("Lists")
         .toolbar { toolbarContent }
     }
 
@@ -113,26 +105,69 @@ struct ProfileView: View {
                 NavigationLink(
                     destination: SettingsView(showSignInView: $showSignInView)
                 ) {
-                    Image(systemName: "ellipsis")
+                    Image(systemName: "ellipsis").foregroundStyle(Color.white)
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: {
-                    //                    newCategoryName = ""
-                    //                    isAddingCategory = true
                     isAddingList = true
                 }) {
                     Image(systemName: "plus")
+                    .padding(Padding.tiny)
+                    .foregroundStyle(Color.white)
+                    .background(
+                        Circle().fill(Color.surface).shadow(
+                            color: .black.opacity(0.2), radius: 2, x: 0, y: 2))
                 }
             }
         }
     }
 
-    private var NewListView: some View {
-        TextField(
-            "New list name",
-            text: $viewModel.newListName,
-            onCommit: {
+    private func listsView() -> some View {
+        ForEach(viewModel.lists, id: \.listId) { list in
+            NavigationLink(destination: ListView(listId: list.listId)) {
+                Text(list.name)
+            }
+            .swipeActions{
+                Button(
+                    role: .destructive,
+                    action: {
+                        Task {
+                            do {
+                                try await viewModel.deleteList(list.listId)
+                            } catch {
+                                print("Error deleting list: \(error)")
+                            }
+                        }
+                    }
+                ) {
+                    Label("Delete", systemImage: "trash")
+                }
+                .tint(.alert)
+            }
+        }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(.surface))
+                .padding(.vertical, Padding.tiny)
+                .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 2)
+        )
+        .font(.body)
+        .padding(.vertical, Padding.small)
+        .listRowSeparator(.hidden)
+        .foregroundStyle(.white)
+
+    }
+
+    private var newListView: some View {
+        withAnimation {
+            TextField(
+                "",
+                text: $viewModel.newListName,
+                prompt: Text("List name")
+                    .foregroundColor(.surfaceLight)
+            )
+            .onSubmit {
                 Task {
                     do {
                         try await viewModel.addNewList()
@@ -141,7 +176,18 @@ struct ProfileView: View {
                         print("Error creating list: \(error)")
                     }
                 }
-            })
+            }
+            .listRowBackground(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(.surface))
+                    .padding(.vertical, Padding.tiny)
+                    .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 2)
+            )
+            .font(.body)
+            .padding(.vertical, Padding.small)
+            .listRowSeparator(.hidden)
+            .foregroundStyle(.white)
+        }
     }
 }
 

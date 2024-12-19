@@ -10,8 +10,8 @@ import SwiftUI
 @MainActor final class ListViewModel: ObservableObject {
     @Published private(set) var list: DBList? = nil
     @Published var newCategoryName: String = ""
-//    @Published var newItem: DBItem = DBItem(
-//        itemId: "", name: "", quantity: 1, note: "", checked: false)
+    //    @Published var newItem: DBItem = DBItem(
+    //        itemId: "", name: "", quantity: 1, note: "", checked: false)
     @Published var currentCategory: String = ""
 
     func loadList(listId: String) async throws {
@@ -19,29 +19,19 @@ import SwiftUI
     }
 
     func addCategory(to listId: String) async throws {
-        let category = DBCategory(
-            categoryId: UUID().uuidString, name: newCategoryName, items: [])
+        let category = DBCategory(name: newCategoryName)
         try await ListManager.shared
             .addCategory(to: listId, category: category)
         self.list = try await ListManager.shared.getList(listId: listId)
         newCategoryName = ""
     }
 
-    func addItem(item: DBItem, to categoryId: String, in listId: String) async throws {
-        let newItem = DBItem(
-            itemId: UUID().uuidString,
-            name: item.name,
-            quantity: item.quantity,
-            note: item.note,
-            checked: item.checked
-        )
-        
-        print(item)
+    func addItem(item: DBItem, to categoryId: String, in listId: String)
+        async throws
+    {
         try await ListManager.shared
             .addItem(to: listId, categoryId: categoryId, item: item)
         self.list = try await ListManager.shared.getList(listId: listId)
-//        newItem = DBItem(
-//            itemId: "", name: "", quantity: 1, note: "", checked: false)
     }
 
     func setCurrentCategory(categoryId: String) {
@@ -55,11 +45,21 @@ import SwiftUI
             listId: listId, categoryId: categoryId, item: item)
         self.list = try await ListManager.shared.getList(listId: listId)
     }
+
+    func deleteItem(listId: String, categoryId: String, item: DBItem)
+        async throws
+    {
+        try await ListManager.shared.deleteItem(
+            listId: listId, categoryId: categoryId, item: item)
+        self.list = try await ListManager.shared.getList(listId: listId)
+    }
+
 }
 
 struct ListView: View {
     @StateObject private var viewModel = ListViewModel()
     @State private var isAddingCategory: Bool = false
+    @State private var isSharing: Bool = false
     let listId: String
 
     var body: some View {
@@ -79,23 +79,43 @@ struct ListView: View {
                 newCategoryView
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color(.surfaceDark))
+        .padding(.top, 48)
+        .overlay {
+            NavigationBar(title: viewModel.list?.name ?? "")
+        }
         .task {
             try? await viewModel.loadList(listId: listId)
         }
         .toolbar {
             toolbarContentView
         }
-        .navigationTitle(viewModel.list?.name ?? "Loading...")
+        .sheet(isPresented: $isSharing) {
+            ShareSheet(isSharing: $isSharing, listId: listId)
+        }
 
     }
 
     private var toolbarContentView: some ToolbarContent {
-        Group {
-            ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItem(placement: .topBarTrailing) {
+            HStack(spacing: Padding.small) {
+                Button(action: {
+                    isSharing = true
+                }) {
+                    Image(systemName: "square.and.arrow.up").foregroundStyle(
+                        Color.white)
+                }
                 Button(action: {
                     isAddingCategory = true
                 }) {
                     Image(systemName: "plus")
+                        .padding(Padding.tiny)
+                        .foregroundStyle(Color.white)
+                        .background(
+                            Circle().fill(Color.surface).shadow(
+                                color: .black.opacity(0.2), radius: 2, x: 0,
+                                y: 2))
                 }
             }
         }

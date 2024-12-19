@@ -16,7 +16,7 @@ struct DBUser: Codable {
 
     init(auth: AuthDataResultModel) {
         self.userId = auth.uid
-        self.email = auth.email!
+        self.email = auth.email!.lowercased()
         self.lists = []
         self.dateCreated = Date()
     }
@@ -78,8 +78,12 @@ final class UserManager {
         let listIds = try await getUser(userId: userId).lists
         var lists: [DBList] = []
         for listId in listIds {
-            let list = try await ListManager.shared.getList(listId: listId)
-            lists.append(list)
+            do {
+                let list = try await ListManager.shared.getList(listId: listId)
+                lists.append(list)
+            } catch {
+                print("List with ID \(listId) not found: \(error)")
+            }
         }
         return lists
     }
@@ -95,6 +99,23 @@ final class UserManager {
         userLists.remove(at: index)
 
         try await userDocument(of: userId).updateData(["lists": userLists])
+    }
+
+    func getUserByEmail(email: String) async throws -> DBUser? {
+        let querySnapshot = try await userCollection.whereField(
+            "email", isEqualTo: email.lowercased()
+        ).getDocuments()
+        let user = try querySnapshot.documents.first?.data(
+            as: DBUser.self,
+            decoder: decoder
+        )
+        return user
+    }
+
+    func addSharedList(listId: String, userId: String) async throws {
+        try await userDocument(of: userId).updateData([
+            "lists": FieldValue.arrayUnion([listId])
+        ])
     }
 
 }

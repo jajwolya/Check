@@ -18,18 +18,18 @@ struct DBList: Codable {
     let listId: String
     let name: String
     var categories: [DBCategory]
+    var users: [String]
     let dateCreated: Date
-    // TODO: Add author prop
 }
 
 struct DBCategory: Codable {
-    let categoryId: String
+    var categoryId: String = UUID().uuidString
     var name: String
-    var items: [DBItem]
+    var items: [DBItem] = []
 }
 
 struct DBItem: Codable {
-    var itemId: String
+    var itemId: String = UUID().uuidString
     var name: String
     var quantity: Int
     var note: String
@@ -37,19 +37,28 @@ struct DBItem: Codable {
     var checked: Bool
 
     init(
-        itemId: String,
         name: String,
         quantity: Int,
         note: String,
         //        priority: Priority,
         checked: Bool
     ) {
-        self.itemId = itemId
         self.name = name
         self.quantity = 1
         self.note = ""
         //        self.priority = .normal
         self.checked = false
+    }
+    
+    init(item: DBItem) {
+        self.name = item.name
+        self.quantity = item.quantity
+        self.note = item.note
+        self.checked = item.checked
+    }
+    
+    static func defaultNewItem() -> DBItem {
+        return DBItem(name: "", quantity: 1, note: "", checked: false)
     }
 }
 
@@ -76,12 +85,13 @@ final class ListManager {
     }()
 
     @discardableResult
-    func createNewList(name: String) async throws -> String {
+    func createNewList(name: String, userId: String) async throws -> String {
         let newListRef = listCollection.document()
         let newList = DBList(
             listId: newListRef.documentID,
             name: name,
             categories: [],
+            users: [userId],
             dateCreated: Date()
         )
         try newListRef.setData(from: newList, merge: false, encoder: encoder)
@@ -136,9 +146,45 @@ final class ListManager {
                 domain: "Item or category not found", code: 404, userInfo: nil)
         }
     }
-
-    func deleteList(listId: String) async throws {
-        let listDocumentRef = listDocument(of: listId)
-        try await listDocumentRef.delete()
+    
+    func deleteItem(listId: String, categoryId: String, item: DBItem)
+    async throws
+{
+    var list = try await getList(listId: listId)
+    if let categoryIndex = list.categories.firstIndex(where: {
+        $0.categoryId == categoryId
+    }),
+        let itemIndex = list.categories[categoryIndex].items.firstIndex(
+            where: {
+                $0.itemId == item.itemId
+            })
+    {
+        list.categories[categoryIndex].items.remove(at: itemIndex)
+        try listDocument(of: listId).setData(
+            from: list, merge: true, encoder: encoder)
+    } else {
+        throw NSError(
+            domain: "Item or category not found", code: 404, userInfo: nil)
     }
+}
+
+    func deleteList(listId: String, userId: String) async throws {
+        var list = try await getList(listId: listId)
+        if let index = list.users.firstIndex(of: userId) {
+            list.users.remove(at: index)
+        }
+        if list.users.isEmpty {
+            try await listDocument(of: listId).delete()
+        } else {
+            try listDocument(of: listId)
+                .setData(from: list, merge: true, encoder: encoder)
+        }
+    }
+    
+    func addUser(listId: String, userId: String) async throws {
+        try await listDocument(of: listId).updateData([
+            "users": FieldValue.arrayUnion([userId])
+        ])
+    }
+
 }
