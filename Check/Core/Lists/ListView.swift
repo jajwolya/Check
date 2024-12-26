@@ -9,21 +9,28 @@ import SwiftUI
 
 @MainActor final class ListViewModel: ObservableObject {
     @Published private(set) var list: DBList? = nil
-    @Published var newCategoryName: String = ""
-    //    @Published var newItem: DBItem = DBItem(
-    //        itemId: "", name: "", quantity: 1, note: "", checked: false)
     @Published var currentCategory: String = ""
 
     func loadList(listId: String) async throws {
         self.list = try await ListManager.shared.getList(listId: listId)
     }
 
-    func addCategory(to listId: String) async throws {
+    func addListenerForList(listId: String) {
+        ListManager.shared.addListenerForLists(listId: listId) { result in
+            switch result {
+            case .success(let updatedList):
+                self.list = updatedList
+            case .failure(let error):
+                print("Failed to listen to list updates: \(error)")
+            }
+        }
+    }
+
+    func addCategory(name newCategoryName: String, to listId: String) async throws {
         let category = DBCategory(name: newCategoryName)
         try await ListManager.shared
             .addCategory(to: listId, category: category)
         self.list = try await ListManager.shared.getList(listId: listId)
-        newCategoryName = ""
     }
 
     func addItem(item: DBItem, to categoryId: String, in listId: String)
@@ -54,47 +61,87 @@ import SwiftUI
         self.list = try await ListManager.shared.getList(listId: listId)
     }
 
+    func deleteCategory(listId: String, categoryId: String) async throws {
+        try await ListManager.shared.deleteCategory(
+            listId: listId, categoryId: categoryId)
+        self.list = try await ListManager.shared.getList(listId: listId)
+    }
 }
 
 struct ListView: View {
     @StateObject private var viewModel = ListViewModel()
     @State private var isAddingCategory: Bool = false
     @State private var isSharing: Bool = false
-    let listId: String
+    @State private var didAppear: Bool = false
+    @State private var newCategoryName: String = ""
+    var listId: String
+    var listName: String
+    //    var list: DBList
 
     var body: some View {
         List {
-            if let list = viewModel.list {
+            if let list = viewModel.list, !list.categories.isEmpty {
                 ForEach(list.categories, id: \.categoryId) { category in
                     CategoryView(
-                        viewModel: viewModel,
                         category: category,
                         listId: listId
-                    )
+                    ).listRowInsets(EdgeInsets())
+                        .environmentObject(viewModel)
                 }
-            } else {
-                Text("Add a category to get started")
             }
-            if isAddingCategory {
-                newCategoryView
+            if let list = viewModel.list,
+                list.categories.isEmpty || isAddingCategory
+            {
+                Section() {
+                    newCategoryView
+                }
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(Color(.surfaceDark))
-        .padding(.top, 48)
-        .overlay {
-            NavigationBar(title: viewModel.list?.name ?? "")
+        .onAppear {
+            if !didAppear {
+                viewModel.addListenerForList(listId: listId)
+                didAppear = true
+            }
         }
         .task {
-            try? await viewModel.loadList(listId: listId)
+            do {
+                try await viewModel.loadList(listId: listId)
+            } catch {
+                print("Error loading list: \(error)")
+            }
         }
-        .toolbar {
-            toolbarContentView
+        //        List {
+        //            if !list.categories.isEmpty {
+        //                ForEach(list.categories, id: \.categoryId) { category in
+        //                    CategoryView(
+        //                        category: category,
+        //                        listId: list.listId
+        //                    ).listRowInsets(EdgeInsets())
+        //                        .environmentObject(viewModel)
+        //                }
+        //            }
+        //            if list.categories.isEmpty || isAddingCategory {
+        //                Section("Category heading") {
+        //                    newCategoryView
+        //                }
+        //            }
+        //        }
+        .padding(.top, 64)
+        .listSectionSpacing(.compact)
+        .environment(\.defaultMinListRowHeight, 0)
+        .background(Color.surfaceDark)
+        .scrollContentBackground(.hidden)
+        .navigationBarBackButtonHidden(true)
+        .overlay {
+            NavigationBarList(
+                title: listName,
+                isAdding: $isAddingCategory,
+                isSharing: $isSharing
+            )
         }
         .sheet(isPresented: $isSharing) {
             ShareSheet(isSharing: $isSharing, listId: listId)
         }
-
     }
 
     private var toolbarContentView: some ToolbarContent {
@@ -123,23 +170,31 @@ struct ListView: View {
 
     private var newCategoryView: some View {
         TextField(
-            "New Category name", text: $viewModel.newCategoryName,
-            onCommit: {
-                Task {
-                    do {
-                        try await viewModel.addCategory(to: listId)
-                        isAddingCategory = false
-                    } catch {
-                        print("Error creating list: \(error)")
-                    }
+            "", text: $newCategoryName,
+            prompt: Text("Category name")
+                .foregroundStyle(Color.surfaceLight)
+        )
+        .foregroundStyle(Color.white)
+        .listRowBackground(Color.surface)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.surface))
+        .submitLabel(.done)
+        .padding(0)
+        .onSubmit {
+            Task {
+                do {
+                    try await viewModel.addCategory(name: newCategoryName, to: listId)
+                    isAddingCategory = false
+                    newCategoryName = ""
+                } catch {
+                    print("Error creating list: \(error)")
                 }
             }
-        )
+        }
     }
 }
 
-#Preview {
-    NavigationStack {
-        ListView(listId: "listId")
-    }
-}
+//#Preview {
+//    NavigationStack {
+//        ListView(listId: "listId")
+//    }
+//}

@@ -8,6 +8,10 @@
 import Foundation
 import SwiftUI
 
+enum CustomError: Error {
+    case failedToFetchList(listId: String, underlyingError: Error)
+}
+
 enum ListError: Error {
     case creationFailed(String)
 }

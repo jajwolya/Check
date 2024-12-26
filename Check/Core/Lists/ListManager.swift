@@ -49,14 +49,14 @@ struct DBItem: Codable {
         //        self.priority = .normal
         self.checked = false
     }
-    
+
     init(item: DBItem) {
         self.name = item.name
         self.quantity = item.quantity
         self.note = item.note
         self.checked = item.checked
     }
-    
+
     static func defaultNewItem() -> DBItem {
         return DBItem(name: "", quantity: 1, note: "", checked: false)
     }
@@ -97,10 +97,49 @@ final class ListManager {
         try newListRef.setData(from: newList, merge: false, encoder: encoder)
         return newListRef.documentID
     }
+    
+//    func getLists(listIds: [String]) async throws -> [DBList] {
+//        let query = listCollection.whereField(FieldPath.documentID(), in: listIds)
+//        
+//    }
 
     func getList(listId: String) async throws -> DBList {
-        return try await listDocument(of: listId)
-            .getDocument(as: DBList.self, decoder: decoder)
+        do {
+            return try await listDocument(of: listId)
+                .getDocument(as: DBList.self, decoder: decoder)
+        } catch {
+            throw CustomError.failedToFetchList(
+                listId: listId,
+                underlyingError: error
+            )
+        }
+    }
+    
+    func addListenerForLists(listId: String, completion: @escaping (Result<DBList, Error>) -> Void) {
+        listDocument(of: listId)
+            .addSnapshotListener { [self] documentSnapshot, error in
+            if let error = error {
+                print("Error fetching document: \(error.localizedDescription)")
+                completion(.failure(error))
+                return
+            }
+            
+            guard let document = documentSnapshot else {
+                print("Document does not exist")
+                completion(.failure(NSError(domain: "DocumentError", code: 404, userInfo: [NSLocalizedDescriptionKey: "Document does not exist."])))
+                return
+            }
+            
+            do {
+                // Decode the document into your DBList model
+                let updatedList = try document.data(as: DBList.self, decoder: decoder)
+                // Call the completion handler with the successfully decoded list
+                completion(.success(updatedList))
+            } catch {
+                print("Error decoding document: \(error.localizedDescription)")
+                completion(.failure(error))
+            }
+        }
     }
 
     func addCategory(to listId: String, category: DBCategory) async throws {
@@ -108,6 +147,20 @@ final class ListManager {
         list.categories.append(category)
         try listDocument(of: listId)
             .setData(from: list, merge: true, encoder: encoder)
+    }
+
+    func deleteCategory(listId: String, categoryId: String) async throws {
+        var list = try await getList(listId: listId)
+        if let categoryIndex = list.categories.firstIndex(where: {
+            $0.categoryId == categoryId
+        }) {
+            list.categories.remove(at: categoryIndex)
+            try listDocument(of: listId).setData(
+                from: list, merge: true, encoder: encoder)
+        } else {
+            throw NSError(
+                domain: "Category not found", code: 404, userInfo: nil)
+        }
     }
 
     func addItem(to listId: String, categoryId: String, item: DBItem)
@@ -146,27 +199,27 @@ final class ListManager {
                 domain: "Item or category not found", code: 404, userInfo: nil)
         }
     }
-    
+
     func deleteItem(listId: String, categoryId: String, item: DBItem)
-    async throws
-{
-    var list = try await getList(listId: listId)
-    if let categoryIndex = list.categories.firstIndex(where: {
-        $0.categoryId == categoryId
-    }),
-        let itemIndex = list.categories[categoryIndex].items.firstIndex(
-            where: {
-                $0.itemId == item.itemId
-            })
+        async throws
     {
-        list.categories[categoryIndex].items.remove(at: itemIndex)
-        try listDocument(of: listId).setData(
-            from: list, merge: true, encoder: encoder)
-    } else {
-        throw NSError(
-            domain: "Item or category not found", code: 404, userInfo: nil)
+        var list = try await getList(listId: listId)
+        if let categoryIndex = list.categories.firstIndex(where: {
+            $0.categoryId == categoryId
+        }),
+            let itemIndex = list.categories[categoryIndex].items.firstIndex(
+                where: {
+                    $0.itemId == item.itemId
+                })
+        {
+            list.categories[categoryIndex].items.remove(at: itemIndex)
+            try listDocument(of: listId).setData(
+                from: list, merge: true, encoder: encoder)
+        } else {
+            throw NSError(
+                domain: "Item or category not found", code: 404, userInfo: nil)
+        }
     }
-}
 
     func deleteList(listId: String, userId: String) async throws {
         var list = try await getList(listId: listId)
@@ -180,7 +233,7 @@ final class ListManager {
                 .setData(from: list, merge: true, encoder: encoder)
         }
     }
-    
+
     func addUser(listId: String, userId: String) async throws {
         try await listDocument(of: listId).updateData([
             "users": FieldValue.arrayUnion([userId])

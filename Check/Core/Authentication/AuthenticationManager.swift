@@ -26,17 +26,23 @@ final class AuthenticationManager {
     }
     
     private var authListener: AuthStateDidChangeListenerHandle?
+    @Published var currentUser: User? = nil
     
     private func setupAuthListener() {
-        authListener = Auth.auth().addStateDidChangeListener { auth, user in
+        authListener = Auth.auth().addStateDidChangeListener { [weak self] auth, user in
             if let user = user {
-                // User is signed in
                 print("User signed in: \(user.uid)")
-                // You can also trigger loading user-specific data here if needed
+                self?.currentUser = user
             } else {
-                // No user is signed in
                 print("No user is signed in.")
+                self?.currentUser = nil
             }
+        }
+    }
+    
+    deinit {
+        if let authListener = authListener {
+            Auth.auth().removeStateDidChangeListener(authListener)
         }
     }
 

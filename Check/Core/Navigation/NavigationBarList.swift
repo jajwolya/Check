@@ -7,15 +7,14 @@
 
 import SwiftUI
 
-struct NavigationBar: View {
+struct NavigationBarList: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.presentationMode) private var presentationMode
 
     var title: String
-    var pendingListsCount: Int
-    @Binding var showSignInView: Bool
+    var displayShare: Bool = false
     @Binding var isAdding: Bool
-    @Binding var openPendingLists: Bool
+    @Binding var isSharing: Bool
 
     var body: some View {
         ZStack {
@@ -23,10 +22,13 @@ struct NavigationBar: View {
             HStack {
 
                 HStack(spacing: Padding.large) {
-                    NavigationLink(
-                        destination: SettingsView(showSignInView: $showSignInView)
-                    ) {
-                        Image(systemName: "ellipsis").foregroundStyle(Color.white)
+                    if presentationMode.wrappedValue.isPresented {
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            Image(systemName: "arrow.backward")
+
+                        }
                     }
                     Text(title)
                         .font(.title3.weight(.bold))
@@ -35,11 +37,9 @@ struct NavigationBar: View {
 
                 HStack(spacing: Padding.regular) {
                     Button(action: {
-                        openPendingLists = true
+                        isSharing = true
                     }) {
-                        pendingListsCount != 0
-                            ? Image(systemName: "bell.badge")
-                            : Image(systemName: "bell")
+                        Image(systemName: "square.and.arrow.up")
                     }
                     Button(action: {
                         isAdding = true
