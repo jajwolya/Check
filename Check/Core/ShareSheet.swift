@@ -37,7 +37,9 @@ import SwiftUI
 struct ShareSheet: View {
     @Binding var isSharing: Bool
     let listId: String
-
+    let users: [String]
+    @FocusState private var emailInFocus: Bool
+    
     @State private var emailToShare: String = ""
     @StateObject private var viewModel: ShareSheetViewModel =
         ShareSheetViewModel()
@@ -48,15 +50,21 @@ struct ShareSheet: View {
             VStack(spacing: Padding.regular) {
                 Text(
                     "Enter the email of the user you'd like to share this list with"
-                ).font(.caption).foregroundStyle(.surfaceLight)
+                ).font(.caption).foregroundStyle(.white)
                 TextField(
                     "",
                     text: $emailToShare,
                     prompt: Text("Email")
                         .foregroundColor(.surfaceLight)
                 )
+                .focused($emailInFocus)
                 .textInputAutocapitalization(.never)
                 .submitLabel(.send)
+                .padding(.vertical, Padding.small)
+                .padding(.horizontal, Padding.gutter)
+                .background(RoundedRectangle(cornerRadius: 8).fill(.surface))
+                .font(.body)
+                .listRowSeparator(.hidden)
                 .onSubmit {
                     Task {
                         do {
@@ -68,15 +76,20 @@ struct ShareSheet: View {
                         }
                     }
                 }
-                .padding(.vertical, Padding.small)
-                .padding(.horizontal, Padding.gutter)
-                .background(RoundedRectangle(cornerRadius: 8).fill(.surface))
-                .font(.body)
-                .listRowSeparator(.hidden)
-
+                
+//                Divider().background(Color.surfaceLight)
+//                
+//                Text("Currently shared with")
+//                    .font(.subheadline)
+//                    .fontWeight(.semibold)
+                
+                
             }
             .foregroundStyle(.white)
             .padding(.horizontal, Padding.gutter)
+        }
+        .onAppear{
+            self.emailInFocus = true
         }
         .presentationDetents([.fraction(0.25)])
         .presentationBackground(.ultraThinMaterial)

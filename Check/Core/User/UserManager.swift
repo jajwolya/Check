@@ -15,7 +15,7 @@ struct PendingList: Codable {
 }
 
 struct UserList: Codable {
-    let name: String
+    var name: String
     let id: String
 }
 
@@ -109,16 +109,26 @@ final class UserManager {
     }
 
     func deleteList(userId: String, listId: String) async throws {
+        // Fetch the user and their lists
         let user = try await getUser(userId: userId)
-        var userLists = user.lists.map { $0.id }
 
-        guard let index = userLists.firstIndex(of: listId) else {
+        // Ensure your user has lists
+//        guard let lists = user.lists else {
+//            throw NSError(domain: "No lists found for user", code: 404, userInfo: nil)
+//        }
+
+        // Find the index of the list with the specified ID
+        guard let index = user.lists.firstIndex(where: { $0.id == listId }) else {
             throw NSError(domain: "List not found", code: 404, userInfo: nil)
         }
 
-        userLists.remove(at: index)
+        // Remove the list at the found index
+        var updatedLists = user.lists
+        updatedLists.remove(at: index)
 
-        try await userDocument(of: userId).updateData(["lists": userLists])
+        // Update the user document with the new array of lists
+        let listData = updatedLists.map { ["id": $0.id, "name": $0.name] } // Adjust if your lists contain different keys
+        try await userDocument(of: userId).updateData(["lists": listData])
     }
 
     func getUserByEmail(email: String) async throws -> DBUser? {
@@ -136,7 +146,7 @@ final class UserManager {
         listId: String, listName: String, userId: String, username: String
     ) async throws {
         let user = try await getUser(userId: userId)
-        var userLists = user.lists.map { $0.id }
+        let userLists = user.lists.map { $0.id }
 
         if userLists.contains(listId) {
             print("User already has access to the list.")
@@ -169,4 +179,21 @@ final class UserManager {
         ])
     }
 
+    func updateListName(userId: String, listId: String, listName: String) async throws {
+        let user = try await getUser(userId: userId)
+        guard let index = user.lists.firstIndex(where: { $0.id == listId }) else {
+            throw NSError(domain: "List not found", code: 404, userInfo: nil)
+        }
+        
+        var updatedLists = user.lists
+        updatedLists[index].name = listName
+        
+        let listData = updatedLists.map { ["id": $0.id, "name": $0.name] }
+
+        do {
+            try await userDocument(of: userId).updateData(["lists": listData])
+        } catch {
+            throw FirestoreError.updateFailed("Failed to update user document: \(error.localizedDescription)")
+        }
+    }
 }

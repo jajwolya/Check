@@ -15,24 +15,23 @@ struct NavigationBar: View {
     var pendingListsCount: Int
     @Binding var showSignInView: Bool
     @Binding var isAdding: Bool
+    @Binding var listName: String
     @Binding var openPendingLists: Bool
+    @Binding var isEditingList: Bool
 
     var body: some View {
         ZStack {
-            Color(.surfaceDark).ignoresSafeArea()
+            Color(.surfaceBackground).ignoresSafeArea()
             HStack {
-
                 HStack(spacing: Padding.large) {
                     NavigationLink(
                         destination: SettingsView(showSignInView: $showSignInView)
                     ) {
-                        Image(systemName: "ellipsis").foregroundStyle(Color.white)
+                        Image(systemName: "gearshape").foregroundStyle(Color.white)
                     }
                     Text(title)
-                        .font(.title3.weight(.bold))
-
+                        .font(.title2.weight(.bold))
                 }.frame(maxWidth: .infinity, alignment: .leading)
-
                 HStack(spacing: Padding.regular) {
                     Button(action: {
                         openPendingLists = true
@@ -43,9 +42,13 @@ struct NavigationBar: View {
                     }
                     Button(action: {
                         isAdding = true
+                        isEditingList = false
+                        listName = ""
                     }) {
                         Image(systemName: "plus")
                     }
+                    .frame(width: 32, height: 32, alignment: .center)
+                    .background(Circle().fill(Color.surface))
                 }.frame(alignment: .trailing)
 
             }.foregroundStyle(Color.white).padding(.horizontal, Padding.gutter)
