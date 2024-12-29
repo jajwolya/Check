@@ -8,18 +8,34 @@
 import SwiftUI
 
 struct CategoryView: View {
+    enum FocusedField: Hashable {
+        case name
+        case note
+    }
+
     @EnvironmentObject var viewModel: ListViewModel
-    let category: DBCategory
+    var category: DBCategory
     let listId: String
+    @FocusState private var focusedField: FocusedField?
 
     @State private var isAddingItem: Bool = false
     @State var newItem: DBItem = DBItem.defaultNewItem()
+    @State private var isShowingDialog = false
+    @State private var draggedItem: DBItem?
 
     var body: some View {
-        Section(header: categoryHeader()) {
-            ForEach(category.items.filter { !$0.checked }, id: \.itemId) {
-                item in
+        Section(header: categoryHeader(category: category)) {
+            ForEach(
+                Array(category.items.filter { !$0.checked }.enumerated()),
+                id: \.element.id
+            ) { index, item in
+                if index >= 1 {
+                    Divider().background(Color.surfaceLight)
+                }
                 itemView(of: item)
+                    .onAppear {
+                        focusedField = .name
+                    }
                     .swipeActions(allowsFullSwipe: false) {
                         Button(
                             role: .destructive,
@@ -28,7 +44,7 @@ struct CategoryView: View {
                                     do {
                                         try await viewModel.deleteItem(
                                             listId: listId,
-                                            categoryId: category.categoryId,
+                                            categoryId: category.id,
                                             item: item)
                                     } catch {
                                         print("Error deleting item: \(error)")
@@ -41,40 +57,88 @@ struct CategoryView: View {
                         .tint(.alert)
                     }
             }
+            .onMove(
+                perform: {
+                    indexSet,
+                    destination in
+                    Task {
+                        do {
+                            try await moveItems(
+                                indexSet: indexSet,
+                                destination: destination
+                            )
+                        } catch {
+                            print("Error reordering items: \(error)")
+                        }
+                    }
+                })
 
-            ForEach(category.items.filter { $0.checked }, id: \.itemId) {
-                item in
+            ForEach(
+                Array(category.items.filter { $0.checked }.enumerated()),
+                id: \.element.id
+            ) { index, item in
+                if index >= 1 {
+                    Divider().background(Color.surfaceLight)
+                }
                 itemView(of: item)
             }
         }
 
         if isAddingItem
-            && viewModel.currentCategory == category.categoryId
+            && viewModel.currentCategory == category.id
         {
             inputView()
         }
     }
 
-    private func categoryHeader() -> some View {
+    private func moveItems(
+        indexSet: IndexSet, destination: Int
+    ) async throws {
+        var uncheckedItems = category.items.filter { !$0.checked }
+        uncheckedItems.move(
+            fromOffsets: indexSet,
+            toOffset: destination
+        )
+        var checkedItems = category.items.filter { $0.checked }
+        let items = uncheckedItems + checkedItems
+        try await viewModel
+            .updateItemOrder(listId: listId, categoryId: category.id, updatedItems: items)
+    }
+
+    private func categoryHeader(category: DBCategory) -> some View {
         HStack {
             Text(category.name).fontWeight(.semibold)
             Spacer()
             HStack(spacing: Padding.regular) {
                 Button(action: {
-                    Task {
-                        do {
-                            try await viewModel.deleteCategory(
-                                listId: listId, categoryId: category.categoryId)
-                        } catch {
-                            print("Error deleting category: \(error)")
+                    isShowingDialog = true
+                }) {
+                    Image(systemName: "folder.badge.minus")
+                }
+                .confirmationDialog(
+                    "Are you sure you want to delete this category?",
+                    isPresented: $isShowingDialog,
+                    titleVisibility: .visible
+                ) {
+                    Button("Delete category", role: .destructive) {
+                        Task {
+                            do {
+                                try await viewModel.deleteCategory(
+                                    listId: listId,
+                                    categoryId: category.id)
+                            } catch {
+                                print("Error deleting category: \(error)")
+                            }
                         }
                     }
-                }) {
-                    Image(systemName: "trash")
+                    Button("Cancel", role: .cancel) {
+                        isShowingDialog = false
+                    }
                 }
+
                 Button(action: {
                     viewModel.setCurrentCategory(
-                        categoryId: category.categoryId)
+                        categoryId: category.id)
                     isAddingItem = true
                 }) {
                     Image(systemName: "plus")
@@ -99,31 +163,32 @@ struct CategoryView: View {
     private func inputView() -> some View {
         //        VStack {
         VStack {
-                TextField(
-                    "",
-                    text: $newItem.name,
-                    prompt: Text("Name")
-                        .foregroundStyle(Color.surfaceLight)
-                ).frame(maxHeight: .infinity, alignment: .center)
-                    .padding(Padding.small)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8).fill(Color.surface)
-                    )
-                    .submitLabel(.done)
-                    .onSubmit {
-                        Task {
-                            do {
-                                try await viewModel.addItem(
-                                    item: newItem,
-                                    to: category.categoryId, in: listId)
-                                isAddingItem = false
-                                newItem = DBItem.defaultNewItem()
-                            } catch {
-                                print("Error adding item: \(error)")
-                            }
-                        }
+            TextField(
+                "",
+                text: $newItem.name,
+                prompt: Text("Name")
+                    .foregroundStyle(Color.surfaceLight)
+            )
+            .focused($focusedField, equals: .name)
+            .frame(maxHeight: .infinity, alignment: .center)
+            .padding(Padding.small)
+            .background(
+                RoundedRectangle(cornerRadius: 8).fill(Color.surface)
+            )
+            .submitLabel(.done)
+            .onSubmit {
+                Task {
+                    do {
+                        try await viewModel.addItem(
+                            item: newItem,
+                            to: category.id, in: listId)
+                        isAddingItem = false
+                        newItem = DBItem.defaultNewItem()
+                    } catch {
+                        print("Error adding item: \(error)")
                     }
-            
+                }
+            }
 
             //            Divider().background(.surfaceLight)
 
@@ -131,48 +196,50 @@ struct CategoryView: View {
             //                "Quantity: \(newItem.quantity)", value: $newItem.quantity,
             //                in: 1...100
             //            ).frame(maxHeight: .infinity, alignment: .center)
-            
-                HStack(spacing: Padding.small) {
-                    Text("Quantity: ").foregroundStyle(Color.surfaceLight)
-                    Text("\(newItem.quantity)")
-                    Spacer()
 
+            HStack(spacing: Padding.small) {
+                Text("Quantity: ").foregroundStyle(Color.surfaceLight)
+                Text("\(newItem.quantity)")
+                Spacer()
+                HStack(spacing: 0) {
                     Button(action: {
                         if newItem.quantity > 1 {
                             newItem.quantity -= 1
                         }
                     }) {
                         Image(systemName: "minus")
-                            .frame(width: 24, height: 24)
-                            .background(Circle().fill(Color.surfaceLight))
+                            .frame(width: 32, height: 24)
                     }.buttonStyle(.borderless)
-
+                    Divider().background(.surfaceLight)
                     Button(action: { newItem.quantity += 1 }) {
                         Image(systemName: "plus")
-                            .frame(width: 24, height: 24)
-                            .background(Circle().fill(Color.surfaceLight))
-                    }.buttonStyle(.borderless)
+                            .frame(width: 32, height: 24)
 
-                }.padding(Padding.small)
+                    }.buttonStyle(.borderless)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 8).fill(Color.surfaceLight))
+
+            }.padding(Padding.small)
                 .background(
                     RoundedRectangle(cornerRadius: 8).fill(Color.surface)
                 )
-            
 
             //            Divider().background(.surfaceLight)
 
-                TextField(
-                    "",
-                    text: $newItem.note,
-                    prompt: Text("Note").foregroundStyle(Color.surfaceLight)
-                )
-                .lineLimit(
-                    1...5
-                ).frame(maxHeight: .infinity, alignment: .center)
-                .padding(Padding.small)
-                .background(
-                    RoundedRectangle(cornerRadius: 8).fill(Color.surface)
-                )
+            TextField(
+                "",
+                text: $newItem.note,
+                prompt: Text("Note").foregroundStyle(Color.surfaceLight)
+            )
+            .focused($focusedField, equals: .note)
+            .lineLimit(
+                1...5
+            ).frame(maxHeight: .infinity, alignment: .center)
+            .padding(Padding.small)
+            .background(
+                RoundedRectangle(cornerRadius: 8).fill(Color.surface)
+            )
 
             //            Divider().background(.surfaceLight)
 
@@ -194,7 +261,7 @@ struct CategoryView: View {
                         do {
                             try await viewModel.addItem(
                                 item: newItem,
-                                to: category.categoryId, in: listId)
+                                to: category.id, in: listId)
                             isAddingItem = false
                             newItem = DBItem.defaultNewItem()
                         } catch {
@@ -213,8 +280,9 @@ struct CategoryView: View {
                 .disabled(newItem.name.isEmpty)
                 .padding(Padding.small)
                 .background(
-                    RoundedRectangle(cornerRadius: 8).fill(newItem.name.isEmpty
-                                                           ? Color.surface : Color.brandPrimary)
+                    RoundedRectangle(cornerRadius: 8).fill(
+                        newItem.name.isEmpty
+                            ? Color.surface : Color.brandPrimary)
                 )
             }
             .listRowBackground(Color.clear)
@@ -232,52 +300,54 @@ struct CategoryView: View {
     }
 
     private func itemView(of item: DBItem) -> some View {
-        VStack(spacing: 0) {
-            VStack(spacing: Padding.small) {
-                Button(
-                    action: {
-                        Task {
-                            do {
-                                try await viewModel.toggleCheckedItem(
-                                    listId: listId,
-                                    categoryId: category.categoryId,
-                                    item: item
-                                )
-                            } catch {
-                                print("Error updating item: \(error)")
-                            }
-                        }
-                    }) {
-                        HStack {
-                            Text(
-                                "\(item.name) \(item.quantity > 1 ? "(\(String(item.quantity)))" : "")"
-                            ).foregroundStyle(
-                                item.checked ? .secondary : .primary
+        VStack(spacing: Padding.small) {
+            Button(
+                action: {
+                    Task {
+                        do {
+                            try await viewModel.toggleCheckedItem(
+                                listId: listId,
+                                categoryId: category.id,
+                                item: item
                             )
-                            .strikethrough(item.checked)
-                            //                            Spacer()
-                            //                            Image(
-                            //                                systemName: item.checked
-                            //                                    ? "checkmark.square.fill" : "square")
+                        } catch {
+                            print("Error updating item: \(error)")
                         }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                if !item.note.isEmpty && !item.checked {
-                    Text(item.note)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                    }
+                }) {
+                    HStack {
+                        Text(
+                            "\(item.name) \(item.quantity > 1 ? "(\(String(item.quantity)))" : "")"
+                        ).foregroundStyle(
+                            item.checked ? .secondary : .primary
+                        )
+                        .strikethrough(item.checked)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            if !item.note.isEmpty && !item.checked {
+                Text(item.note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, Padding.gutter)
-            .padding(.vertical, Padding.small)
-
-            Divider().background(Color.surfaceLight)
         }
-
-        //        .background(.red)
+        .padding(.horizontal, Padding.gutter)
+        .padding(.vertical, Padding.small)
         .listRowSeparator(.hidden)
-        .listRowBackground(Color(.surface))
+        .listRowBackground(Color(item.checked ? .surfaceDark : .surface))
         .foregroundStyle(.white)
+        //        .onDrag {
+        //            draggedItem = item
+        //            return NSItemProvider()
+        //        }
+        //        .onDrop(
+        //            of: [.text],
+        //            delegate: DropViewDelegate(
+        //                destinationItem: item,
+        //                colors: $category.items,
+        //                draggedItem: $draggedItem
+        //            )
+        //        )
     }
 }
 

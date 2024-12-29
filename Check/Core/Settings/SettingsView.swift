@@ -35,7 +35,17 @@ extension SettingsView {
             Button(action: { handleLogOut() }) {
                 Text("Log out")
             }
-        }.navigationTitle("Settings")
+        }
+        .foregroundStyle(Color.white)
+        .padding(.top, 64)
+        .background(Color.surfaceBackground)
+        .scrollContentBackground(.hidden)
+        .navigationBarBackButtonHidden(true)
+        .overlay {
+            NavigationBarSettings(
+                title: "Settings"
+            )
+        }
     }
     
     private func handleUpdatePassword() {

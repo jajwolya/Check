@@ -36,6 +36,11 @@ struct PendingSheet: View {
                     }
                 } else {
                     Text("No pending requests!")
+                        .frame(
+                            maxWidth: .infinity,
+                            maxHeight: .infinity,
+                            alignment: .center
+                        )
                 }
             }
             .foregroundStyle(.white)

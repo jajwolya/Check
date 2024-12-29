@@ -26,7 +26,9 @@ import SwiftUI
         }
     }
 
-    func addCategory(name newCategoryName: String, to listId: String) async throws {
+    func addCategory(name newCategoryName: String, to listId: String)
+        async throws
+    {
         let category = DBCategory(name: newCategoryName)
         try await ListManager.shared
             .addCategory(to: listId, category: category)
@@ -61,15 +63,53 @@ import SwiftUI
         self.list = try await ListManager.shared.getList(listId: listId)
     }
 
+    func deleteCheckedItems(listId: String) async throws {
+        guard var list = list else {
+            return
+        }
+
+        var updatedCategories: [DBCategory] = []
+
+        for category in list.categories {
+            let updatedItems = category.items.filter { !$0.checked }
+            let updatedCategory = DBCategory(
+                id: category.id,
+                name: category.name,
+                items: updatedItems
+            )
+            updatedCategories.append(updatedCategory)
+        }
+
+        // Update the list with the updated categories
+        list.categories = updatedCategories
+
+        // Assuming `updateCategories` updates all categories in the list
+        try await ListManager.shared
+            .updateCategories(
+                listId: listId,
+                updatedCategories: list.categories
+            )
+
+        // Optionally fetch the updated list
+        self.list = try await ListManager.shared.getList(listId: listId)
+    }
+
     func deleteCategory(listId: String, categoryId: String) async throws {
         try await ListManager.shared.deleteCategory(
             listId: listId, categoryId: categoryId)
+        self.list = try await ListManager.shared.getList(listId: listId)
+    }
+    
+    func updateItemOrder(listId: String, categoryId: String, updatedItems: [DBItem]) async throws {
+        try await ListManager.shared.updateCategoryItems(
+            listId: listId, categoryId: categoryId, with: updatedItems)
         self.list = try await ListManager.shared.getList(listId: listId)
     }
 }
 
 struct ListView: View {
     @StateObject private var viewModel = ListViewModel()
+    @FocusState private var focusedField: Bool
     @State private var isAddingCategory: Bool = false
     @State private var isSharing: Bool = false
     @State private var didAppear: Bool = false
@@ -81,7 +121,7 @@ struct ListView: View {
     var body: some View {
         List {
             if let list = viewModel.list, !list.categories.isEmpty {
-                ForEach(list.categories, id: \.categoryId) { category in
+                ForEach(list.categories, id: \.id) { category in
                     CategoryView(
                         category: category,
                         listId: listId
@@ -92,8 +132,12 @@ struct ListView: View {
             if let list = viewModel.list,
                 list.categories.isEmpty || isAddingCategory
             {
-                Section() {
+                Section {
                     newCategoryView
+                        .focused($focusedField)
+                        .onAppear {
+                            self.focusedField = true
+                        }
                 }
             }
         }
@@ -129,18 +173,23 @@ struct ListView: View {
         .padding(.top, 64)
         .listSectionSpacing(.compact)
         .environment(\.defaultMinListRowHeight, 0)
-        .background(Color.surfaceDark)
+        .background(Color.surfaceBackground)
         .scrollContentBackground(.hidden)
         .navigationBarBackButtonHidden(true)
         .overlay {
             NavigationBarList(
                 title: listName,
                 isAdding: $isAddingCategory,
-                isSharing: $isSharing
-            )
+                isSharing: $isSharing,
+                listId: listId
+            ).environmentObject(viewModel)
         }
         .sheet(isPresented: $isSharing) {
-            ShareSheet(isSharing: $isSharing, listId: listId)
+            ShareSheet(
+                isSharing: $isSharing,
+                listId: listId,
+                users: viewModel.list?.users ?? []
+            )
         }
     }
 
@@ -178,11 +227,12 @@ struct ListView: View {
         .listRowBackground(Color.surface)
         .background(RoundedRectangle(cornerRadius: 8).fill(.surface))
         .submitLabel(.done)
-        .padding(0)
+        .padding(.vertical, Padding.small)
         .onSubmit {
             Task {
                 do {
-                    try await viewModel.addCategory(name: newCategoryName, to: listId)
+                    try await viewModel.addCategory(
+                        name: newCategoryName, to: listId)
                     isAddingCategory = false
                     newCategoryName = ""
                 } catch {
