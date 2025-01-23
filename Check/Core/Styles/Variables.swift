@@ -16,3 +16,9 @@ struct Padding {
     
     static let gutter: CGFloat = Padding.regular
 }
+
+struct CornerRadius {
+    static let small: CGFloat = 4.0
+    static let regular: CGFloat = 8.0
+    static let medium: CGFloat = 32.0
+}

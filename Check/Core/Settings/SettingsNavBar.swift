@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct NavigationBarSettings: View {
+struct SettingsNavBar: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.presentationMode) private var presentationMode
     var title: String
@@ -28,7 +28,12 @@ struct NavigationBarSettings: View {
                         .font(.title3.weight(.bold))
 
                 }.frame(maxWidth: .infinity, alignment: .leading)
-            }.foregroundStyle(Color.white).padding(.horizontal, Padding.gutter)
+            }.foregroundStyle(Color.content).padding(.horizontal, Padding.gutter)
+            VStack {
+                Spacer()
+                Divider().background(Color.surfaceLight)
+            }
+            .padding(.horizontal, Padding.gutter)
         }
         .frame(height: 64)
         .frame(maxHeight: .infinity, alignment: .top)

@@ -24,12 +24,13 @@ final class AuthenticationManager {
     private init() {
         setupAuthListener()
     }
-    
+
     private var authListener: AuthStateDidChangeListenerHandle?
     @Published var currentUser: User? = nil
-    
+
     private func setupAuthListener() {
-        authListener = Auth.auth().addStateDidChangeListener { [weak self] auth, user in
+        authListener = Auth.auth().addStateDidChangeListener {
+            [weak self] auth, user in
             if let user = user {
                 print("User signed in: \(user.uid)")
                 self?.currentUser = user
@@ -39,7 +40,7 @@ final class AuthenticationManager {
             }
         }
     }
-    
+
     deinit {
         if let authListener = authListener {
             Auth.auth().removeStateDidChangeListener(authListener)
@@ -52,6 +53,7 @@ final class AuthenticationManager {
     {
         let authDataResult = try await Auth.auth().createUser(
             withEmail: email, password: password)
+        try await authDataResult.user.sendEmailVerification()
         return AuthDataResultModel(user: authDataResult.user)
     }
 
@@ -79,17 +81,62 @@ final class AuthenticationManager {
         try await Auth.auth().sendPasswordReset(withEmail: email)
     }
 
-    func updatePasword(password: String) async throws {
-        guard let user = Auth.auth().currentUser else {
-            throw URLError(.badServerResponse)
+    func authenticateUser(
+        password: String, completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        guard let user = Auth.auth().currentUser, let email = user.email else {
+            completion(.failure(URLError(.badServerResponse)))
+            return
         }
-        try await user.updatePassword(to: password)
+
+        let credential = EmailAuthProvider.credential(
+            withEmail: email,
+            password: password
+        )
+
+        user.reauthenticate(with: credential) { _, error in
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                completion(.success(()))
+            }
+        }
     }
 
-    func updateEmail(email: String) async throws {
-        guard let user = Auth.auth().currentUser else {
-            throw URLError(.badServerResponse)
+    func updateEmail(
+        newEmail: String, currentPassword: String
+    ) async throws {
+        let result = await withCheckedContinuation { continuation in
+            authenticateUser(password: currentPassword) { result in
+                continuation.resume(returning: result)
+            }
         }
-        try await user.sendEmailVerification(beforeUpdatingEmail: email)
+        switch result {
+        case .success():
+            guard let user = Auth.auth().currentUser else {
+                throw URLError(.badServerResponse)
+            }
+            try await user.sendEmailVerification(beforeUpdatingEmail: newEmail)
+
+        case .failure(let error):
+            throw error
+        }
+    }
+    
+    func updatePassword(newPassword: String, currentPassword: String) async throws {
+        let result = await withCheckedContinuation { continuation in
+            authenticateUser(password: currentPassword) { result in
+                continuation.resume(returning: result)
+            }
+        }
+        switch result {
+        case .success():
+            guard let user = Auth.auth().currentUser else {
+                throw URLError(.badServerResponse)
+            }
+            try await user.updatePassword(to: newPassword)
+        case .failure(let error):
+            throw error
+        }
     }
 }
