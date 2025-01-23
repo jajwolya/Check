@@ -8,91 +8,150 @@
 import SwiftUI
 
 @MainActor final class ShareSheetViewModel: ObservableObject {
-    func shareList(listId: String, with email: String) async throws {
+    @Published private(set) var users: [DBUser] = []
+
+    func shareList(listId: String, from sender: String, to sendee: String)
+        async throws
+    {
         guard
-            let user = try await UserManager.shared.getUserByEmail(
-                email: email
+            let userSendee = try await UserManager.shared.getUserByEmail(
+                email: sendee
             )
         else {
             throw UserError.noCurrentUser(
                 "No user with that email could be found.")
         }
-        
-        let list = try await ListManager.shared.getList(listId: listId)
 
-        let userId = user.userId
-        //        try await UserManager.shared.addSharedList(
-        //            listId: listId, userId: userId)
-        //        try await ListManager.shared.addUser(listId: listId, userId: userId)
+        let list = try await ListManager.shared.getList(listId: listId)
         try await UserManager.shared
             .addPendingList(
                 listId: listId,
                 listName: list.name,
-                userId: userId,
-                username: email
+                sender: sender,
+                sendee: userSendee
             )
     }
+
+    //    func getUsers(userIds: [String]) async throws {
+    //        var users: [DBUser] = []
+    //        for userId in userIds {
+    //            let user = try await UserManager.shared.getUser(userId: userId)
+    //            users.append(user)
+    //        }
+    //        self.users = users
+    //        print(userIds)
+    //    }
 }
 
 struct ShareSheet: View {
-    @Binding var isSharing: Bool
-    let listId: String
-    let users: [String]
-    @FocusState private var emailInFocus: Bool
-    
-    @State private var emailToShare: String = ""
     @StateObject private var viewModel: ShareSheetViewModel =
         ShareSheetViewModel()
+    @FocusState private var emailInFocus: Bool
+    @State private var sendee: String = ""
+
+    let list: DBList
+//    let list: UserList
+    let sender: String
+    let dismissAction: () -> Void
 
     var body: some View {
         ZStack {
             Color(.surfaceDark).ignoresSafeArea()
-            VStack(spacing: Padding.regular) {
-                Text(
-                    "Enter the email of the user you'd like to share this list with"
-                ).font(.caption).foregroundStyle(.white)
+            VStack(spacing: Padding.medium) {
+                Text("Share list").h3()
+
                 TextField(
                     "",
-                    text: $emailToShare,
+                    text: $sendee,
                     prompt: Text("Email")
                         .foregroundColor(.surfaceLight)
                 )
+                .keyboardType(.emailAddress)
+                .disableAutocorrection(true)
+                .autocapitalization(.none)
                 .focused($emailInFocus)
-                .textInputAutocapitalization(.never)
                 .submitLabel(.send)
-                .padding(.vertical, Padding.small)
-                .padding(.horizontal, Padding.gutter)
-                .background(RoundedRectangle(cornerRadius: 8).fill(.surface))
-                .font(.body)
-                .listRowSeparator(.hidden)
+                .padding(Padding.regular)
+                .background(
+                    RoundedRectangle(cornerRadius: CornerRadius.regular)
+                        .fill(.surface)
+                )
+                
                 .onSubmit {
                     Task {
                         do {
                             try await viewModel.shareList(
-                                listId: listId, with: emailToShare)
-                            isSharing = false
+                                listId: list.listId, from: sender, to: sendee)
+                            dismissAction()
                         } catch {
                             print("Could not share list: \(error)")
                         }
                     }
                 }
-                
-//                Divider().background(Color.surfaceLight)
-//                
-//                Text("Currently shared with")
-//                    .font(.subheadline)
-//                    .fontWeight(.semibold)
-                
-                
+
+                Text(
+                    "Enter the email of the user you'd like to share this list with"
+                ).font(.caption).foregroundStyle(.contentFaded).frame(
+                    maxWidth: .infinity, alignment: .leading)
+
+                Spacer()
+
+                HStack(spacing: Padding.regular) {
+                    CustomButton(
+                        text: "Cancel",
+                        action: {
+                            dismissAction()
+                        },
+                        variant: .secondary)
+                    
+                    CustomButton(
+                        text: "Send",
+                        action: {
+                            sendAction()
+                        },
+                        variant: .primary)
+                }
+
+                //                Divider().background(Color.surfaceLight)
+
+                //                VStack(spacing: Padding.small) {
+                //                    Text("Currently shared with")
+                //                        .font(.subheadline)
+                //                        .fontWeight(.semibold)
+                //                        .frame(maxWidth: .infinity, alignment: .leading)
+                //
+                //                    ForEach(viewModel.users, id: \.userId) { user in
+                //                        Text("\(user.email)")
+                //                            .font(.caption)
+                //                            .fontWeight(.regular)
+                //                            .frame(maxWidth: .infinity, alignment: .leading)
+                //                    }
+                //                }
+
             }
-            .foregroundStyle(.white)
-            .padding(.horizontal, Padding.gutter)
+            .foregroundStyle(Color.content)
+            .sheetPadding()
         }
-        .onAppear{
+        .onAppear {
             self.emailInFocus = true
         }
-        .presentationDetents([.fraction(0.25)])
+        //        .task {
+        //            try? await viewModel.getUsers(userIds: list.users)
+        //        }
+        .presentationDetents([.fraction(0.4), .fraction(0.8)])
         .presentationBackground(.ultraThinMaterial)
+    }
+    
+    private func sendAction() {
+        Task {
+            do {
+                try await viewModel.shareList(
+                    listId: list.listId, from: sender, to: sendee)
+                dismissAction()
+            } catch {
+                print("Could not share list: \(error)")
+            }
+        }
     }
 }
 

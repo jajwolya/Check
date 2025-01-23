@@ -9,8 +9,9 @@ import SwiftUI
 
 struct CustomDialog: View {
     @Binding var showDialog: Bool
-    let title: String
-    let options: [(name: String, action: () -> Void)]
+//    let title: String
+    let prompt: String
+    let options: [(name: String, action: () -> Task<Void, Never>)]
     @State private var offset: CGFloat = 500
     
     var body: some View {
@@ -23,8 +24,10 @@ struct CustomDialog: View {
             VStack {
                 Spacer()
                 VStack(spacing: Padding.small) {
-                   Text(title).font(.body).fontWeight(.semibold)
-                        .padding(.vertical, Padding.small)
+//                   Text(title).font(.body).fontWeight(.semibold)
+//                        .padding(.vertical, Padding.small)
+//                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(prompt).font(.caption).padding(.vertical, Padding.small)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(options.indices, id: \.self) { index in
                         Divider().background(Color.surfaceLight)
@@ -37,11 +40,11 @@ struct CustomDialog: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .padding(.vertical, Padding.small)
-                        .foregroundColor(.white)
+                        .foregroundColor(Color.content)
                     }
                 }
                 .padding(Padding.regular)
-                .foregroundStyle(Color.white)
+                .foregroundStyle(Color.content)
                 .background(
                     RoundedRectangle(cornerRadius: CornerRadius.regular)
                         .fill(Color.surface)
@@ -52,7 +55,7 @@ struct CustomDialog: View {
                 }){
                     Text("Cancel").font(.body).fontWeight(.semibold)
                 }
-                .foregroundStyle(Color.white)
+                .foregroundStyle(Color.content)
                 .padding(Padding.regular)
                 .frame(maxWidth: .infinity)
                 .background(
@@ -82,10 +85,10 @@ struct CustomDialog: View {
     }
 }
 
-#Preview {
-    let options = [
-        (name: "Delete category", action: { print("Option 1 selected") }),
-        (name: "Rename category", action: { print("Option 2 selected") })
-    ]
-    EditCategoryDialog(showDialog: .constant(true), title: "Title", options: options)
-}
+//#Preview {
+//    let options = [
+//        (name: "Delete category", action: { print("Option 1 selected") }),
+//        (name: "Rename category", action: { print("Option 2 selected") })
+//    ]
+//    EditCategoryDialog(showDialog: .constant(true), title: "Title", options: options)
+//}

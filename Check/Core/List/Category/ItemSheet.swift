@@ -8,146 +8,124 @@
 import SwiftUI
 
 struct ItemSheet: View {
-    @EnvironmentObject var viewModel: ListViewModel
-    @FocusState private var focusedField: Bool
-    @State var item: DBItem
-    @Binding var currentItem: DBItem?
-    let categoryId: String
+    enum FocusedField {
+        case itemName
+    }
+
+    //    @EnvironmentObject var viewModel: ListViewModel
+    @EnvironmentObject var homeViewModel: HomeViewModel
+    @FocusState private var focusedField: FocusedField?
+    @Binding var item: DBItem
     let listId: String
-    //    var submit: () async throws -> Void
+    var isEditing: Bool = false
+    @Binding var activeSheet: ActiveEditItemSheet
+    var dismissAction: () -> Void
 
     var body: some View {
         ZStack {
             Color(.surfaceDark).ignoresSafeArea()
             VStack(spacing: Padding.regular) {
-                TextField("Name", text: $item.name)
-                    .padding(Padding.regular)
-                    .background(
-                        RoundedRectangle(cornerRadius: CornerRadius.regular)
-                            .fill(Color.surface)
-                    )
-                    .focused($focusedField)
-                    .onAppear {
-                        self.focusedField = true
-                    }
-                    .submitLabel(.done)
+                Text(isEditing ? "Edit item" : "Add item").h3()
+
+                TextField("Item name", text: $item.name)
+                    .customTextField()
+                    .focused($focusedField, equals: .itemName)
 
                 TextField(
                     "",
                     text: $item.note,
                     prompt: Text("Note").foregroundStyle(Color.surfaceLight)
                 )
-                .lineLimit(
-                    1...5
-                )
-                .padding(Padding.regular)
-                .background(
-                    RoundedRectangle(cornerRadius: 8).fill(Color.surface)
-                )
+                .customTextField()
 
-                HStack(spacing: Padding.regular) {
-                    HStack(spacing: Padding.small) {
-                        Text("Quantity: ")
-                            .foregroundStyle(Color.surfaceLight)
-                        Text("\(item.quantity)")
-                    }.padding(Padding.regular)
-                    Spacer()
-                    HStack(spacing: 0) {
-                        Button(action: {
-                            item.quantity -= 1
-                        }) {
-                            Image(systemName: "minus")
-                                .frame(width: 48, height: 48)
-                        }.buttonStyle(.borderless)
-                            .opacity(item.quantity == 1 ? 0.5 : 1)
-                            .disabled(item.quantity == 1)
+                CustomStepper(item: $item)
 
-                        Divider()
-                            .background(Color.surfaceDark)
-                            .frame(height: 32)
-
-                        Button(action: { item.quantity += 1 }) {
-                            Image(systemName: "plus")
-                                .frame(width: 48, height: 48)
-                        }.buttonStyle(.borderless)
-                    }
-                    .background(
-                        RoundedRectangle(cornerRadius: 8).fill(
-                            Color.surface))
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: CornerRadius.regular)
-                        .fill(Color.surface)
-                )
+                //                CategorySelector(activeSheet: $activeSheet, saveAction: saveAction)
+                //                    .environmentObject(homeViewModel)
 
                 Spacer()
 
                 HStack(spacing: Padding.regular) {
-                    Button(
+                    CustomButton(
+                        text: "Cancel",
                         action: {
-                            Task {
-                                do {
-                                    try await viewModel
-                                        .deleteItem(
-                                            listId: listId,
-                                            categoryId: categoryId, item: item)
-                                    currentItem = nil
-                                } catch {
-                                    print("Error: \(error)")
-                                }
-                            }
-                        }) {
-                            Text("Delete")
-                                .fontWeight(.medium)
-                                .padding(Padding.regular)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .background(
-                                    RoundedRectangle(
-                                        cornerRadius: CornerRadius.medium
-                                    )
-                                    .fill(
-                                        Color.surface)
-                                )
-                        }
+                            dismissAction()
+                            dismissAction()
+                        },
+                        variant: .secondary)
 
-                    Button(action: {
-                        Task {
-                            do {
-                                try await viewModel.addItem(
-                                    item: item, to: categoryId, in: listId)
-                                currentItem = nil
-                            } catch {
-                                print("Error: \(error)")
-                            }
-                        }
-                    }) {
-                        Text("Save")
-                            .fontWeight(.medium)
-                            .foregroundStyle(Color.surfaceBackground)
-                            .padding(Padding.regular)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .background(
-                                RoundedRectangle(
-                                    cornerRadius: CornerRadius.medium
-                                )
-                                .fill(Color.light)
-                                .opacity(item.name.isEmpty ? 0.5 : 1)
-                            )
-                    }
-                    .disabled(item.name.isEmpty)
+                    CustomButton(
+                        text: isEditing ? "Save" : "Add",
+                        action: {
+                            isEditing ? saveAction() : addAction()
+                            dismissAction()
+                        },
+                        variant: .primary, disabled: item.name.isEmpty)
                 }
             }
             .frame(maxHeight: .infinity, alignment: .top)
-            .foregroundStyle(.white)
-            .padding(.horizontal, Padding.gutter)
-            .padding(.vertical, Padding.medium)
+            .foregroundStyle(Color.content)
+            .sheetPadding()
         }
-        .presentationDetents([.fraction(0.5), .fraction(0.8)])
+        .presentationDetents([.fraction(1)])
         .presentationBackground(.ultraThinMaterial)
+        .onAppear {
+            focusedField = .itemName
+        }
+    }
+
+    private func deleteAction() {
+        if let categoryId = homeViewModel.currentCategory?
+            .id
+        {
+            Task {
+                do {
+                    try await homeViewModel
+                        .deleteItem(
+                            listId: listId,
+                            categoryId: categoryId,
+                            item: item)
+                } catch {
+                    print("Error: \(error)")
+                }
+            }
+        }
+    }
+
+    private func addAction() {
+        if let categoryId = homeViewModel.currentCategory?.id {
+            Task {
+                do {
+                    try await homeViewModel.addItem(
+                        item: item, to: categoryId,
+                        in: listId)
+                } catch {
+                    print("Error: \(error)")
+                }
+            }
+        }
+    }
+
+    private func saveAction() {
+        if let categoryId = homeViewModel.currentCategory?.id,
+            let previousCategoryId = homeViewModel.previousCategory?
+                .id
+        {
+            Task {
+                do {
+                    try await homeViewModel
+                        .deleteItem(
+                            listId: listId,
+                            categoryId: previousCategoryId,
+                            item: item)
+                    try await homeViewModel.addItem(
+                        item: item, to: categoryId,
+                        in: listId)
+
+                } catch {
+                    print("Error: \(error)")
+                }
+            }
+        }
     }
 }
-
-//#Preview {
-//    let item = DBItem(name: "Bread", quantity: 2, note: "Rye", checked: false)
-//    EditItemSheet(item: item)
-//}

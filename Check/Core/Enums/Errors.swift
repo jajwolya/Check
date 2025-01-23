@@ -14,6 +14,7 @@ enum CustomError: Error {
 
 enum ListError: Error {
     case creationFailed(String)
+    case updateFailed(String)
 }
 
 enum UserError: Error {
